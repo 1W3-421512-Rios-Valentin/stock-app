@@ -346,14 +346,15 @@ app.get('/api/analysis', authMiddleware, async (req, res) => {
       const analysis = sizes.map(size => {
         const stock = stockData.find(s => s.size === size.code)?.quantity || 0;
         const production = productionData.find(p => p.size === size.code && !p.addedToStock)?.quantity || 0;
-      const orders = ordersData.filter(o => o.size === size.code && o.status === 'pendiente').reduce((sum, o) => sum + o.quantity, 0);
-        const available = stock + production - orders;
+        const pendingOrders = ordersData.filter(o => o.size === size.code && o.status === 'pendiente').reduce((sum, o) => sum + o.quantity, 0);
+        const deliveredOrders = ordersData.filter(o => o.size === size.code && o.status === 'entregado').reduce((sum, o) => sum + o.quantity, 0);
+        const available = stock + production - pendingOrders - deliveredOrders;
 
         return {
           size: size.code,
           stock,
           production,
-          orders,
+          orders: pendingOrders + deliveredOrders,
           available: available >= 0 ? available : 0,
           deficit: available < 0 ? Math.abs(available) : 0
         };
@@ -391,15 +392,16 @@ app.get('/api/analysis/:sku', authMiddleware, async (req, res) => {
 
     const analysis = sizes.map(size => {
       const stock = stockData.find(s => s.size === size.code)?.quantity || 0;
-      const production = productionData.find(p => p.size === size.code)?.quantity || 0;
-      const orders = ordersData.filter(o => o.size === size.code && o.status === 'pendiente').reduce((sum, o) => sum + o.quantity, 0);
-      const available = stock + production - orders;
+      const production = productionData.find(p => p.size === size.code && !p.addedToStock)?.quantity || 0;
+      const pendingOrders = ordersData.filter(o => o.size === size.code && o.status === 'pendiente').reduce((sum, o) => sum + o.quantity, 0);
+      const deliveredOrders = ordersData.filter(o => o.size === size.code && o.status === 'entregado').reduce((sum, o) => sum + o.quantity, 0);
+      const available = stock + production - pendingOrders - deliveredOrders;
 
       return {
         size: size.code,
         stock,
         production,
-        orders,
+        orders: pendingOrders + deliveredOrders,
         available: available >= 0 ? available : 0,
         deficit: available < 0 ? Math.abs(available) : 0
       };
