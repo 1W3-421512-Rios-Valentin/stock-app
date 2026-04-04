@@ -256,6 +256,28 @@ app.get('/api/production', authMiddleware, async (req, res) => {
   }
 });
 
+app.put('/api/production/:id/add-to-stock', authMiddleware, async (req, res) => {
+  try {
+    const production = await Production.findById(req.params.id);
+    if (!production) {
+      return res.status(404).json({ error: 'Producción no encontrada' });
+    }
+    const stock = await Stock.findOne({ sku: production.sku, size: production.size });
+    if (stock) {
+      stock.quantity += production.quantity;
+      await stock.save();
+    } else {
+      await Stock.create({ sku: production.sku, size: production.size, quantity: production.quantity });
+    }
+    production.addedToStock = true;
+    await production.save();
+    res.json(production);
+  } catch (err) {
+    console.error('Error add to stock:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.post('/api/orders', authMiddleware, async (req, res) => {
   try {
     const result = await Order.bulkWrite(req.body.items.map(item => ({
@@ -290,6 +312,24 @@ app.get('/api/orders', authMiddleware, async (req, res) => {
   }
 });
 
+app.put('/api/orders/:id', authMiddleware, async (req, res) => {
+  try {
+    const { status } = req.body;
+    const order = await Order.findByIdAndUpdate(
+      req.params.id,
+      { status },
+      { new: true }
+    );
+    if (!order) {
+      return res.status(404).json({ error: 'Pedido no encontrado' });
+    }
+    res.json(order);
+  } catch (err) {
+    console.error('Error update order:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/api/analysis', authMiddleware, async (req, res) => {
   try {
     const products = await Product.find();
@@ -305,8 +345,8 @@ app.get('/api/analysis', authMiddleware, async (req, res) => {
 
       const analysis = sizes.map(size => {
         const stock = stockData.find(s => s.size === size.code)?.quantity || 0;
-        const production = productionData.find(p => p.size === size.code)?.quantity || 0;
-        const orders = ordersData.filter(o => o.size === size.code).reduce((sum, o) => sum + o.quantity, 0);
+        const production = productionData.find(p => p.size === size.code && !p.addedToStock)?.quantity || 0;
+      const orders = ordersData.filter(o => o.size === size.code && o.status === 'pendiente').reduce((sum, o) => sum + o.quantity, 0);
         const available = stock + production - orders;
 
         return {
@@ -352,7 +392,7 @@ app.get('/api/analysis/:sku', authMiddleware, async (req, res) => {
     const analysis = sizes.map(size => {
       const stock = stockData.find(s => s.size === size.code)?.quantity || 0;
       const production = productionData.find(p => p.size === size.code)?.quantity || 0;
-      const orders = ordersData.filter(o => o.size === size.code).reduce((sum, o) => sum + o.quantity, 0);
+      const orders = ordersData.filter(o => o.size === size.code && o.status === 'pendiente').reduce((sum, o) => sum + o.quantity, 0);
       const available = stock + production - orders;
 
       return {

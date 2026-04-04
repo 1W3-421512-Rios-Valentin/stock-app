@@ -424,11 +424,15 @@ function ProductionViewWrapper() {
 function ProductionView({ products }) {
   const [selectedSku, setSelectedSku] = useState('')
   const [productionData, setProductionData] = useState({})
+  const [productionList, setProductionList] = useState([])
   const [message, setMessage] = useState(null)
   const allSizes = [...NUMERIC_SIZES, ...ALPHABETIC_SIZES]
 
   useEffect(() => {
-    if (selectedSku) loadProduction()
+    if (selectedSku) {
+      loadProduction()
+      loadProductionList()
+    }
   }, [selectedSku])
 
   const loadProduction = async () => {
@@ -437,6 +441,15 @@ function ProductionView({ products }) {
       const data = {}
       res.data.forEach(p => { data[p.size] = p.quantity })
       setProductionData(data)
+    } catch (err) {
+      console.error('Error:', err)
+    }
+  }
+
+  const loadProductionList = async () => {
+    try {
+      const res = await api.get(`/production/${selectedSku}`)
+      setProductionList(res.data)
     } catch (err) {
       console.error('Error:', err)
     }
@@ -458,7 +471,17 @@ function ProductionView({ products }) {
     try {
       await api.post('/production', { items })
       showMessage('Producción registrada')
+      setProductionData({})
+      loadProductionList()
     } catch (err) { showMessage('Error al guardar', 'error') }
+  }
+
+  const addToStock = async (prod) => {
+    try {
+      await api.put(`/production/${prod._id}/add-to-stock`)
+      showMessage('Agregado al stock')
+      loadProductionList()
+    } catch (err) { showMessage('Error al agregar', 'error') }
   }
 
   return (
@@ -482,6 +505,39 @@ function ProductionView({ products }) {
             ))}
           </div>
           <button onClick={handleSubmit} className="btn btn-success">Guardar Producción</button>
+          
+          {productionList.length > 0 && (
+            <>
+              <h3 style={{marginTop: '1.5rem'}}>Producción Registrada</h3>
+              <table>
+                <thead><tr><th>Talle</th><th>Cantidad</th><th>Estado</th><th>Acción</th></tr></thead>
+                <tbody>
+                  {productionList.map((p) => (
+                    <tr key={p._id}>
+                      <td>{p.size}</td>
+                      <td>{p.quantity}</td>
+                      <td>
+                        <span className={`badge ${p.addedToStock ? 'badge-success' : 'badge-warning'}`}>
+                          {p.addedToStock ? 'En Stock' : 'Pendiente'}
+                        </span>
+                      </td>
+                      <td>
+                        {!p.addedToStock && (
+                          <button 
+                            onClick={() => addToStock(p)} 
+                            className="btn btn-success"
+                            style={{padding: '0.25rem 0.5rem'}}
+                          >
+                            Agregar a Stock
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </>
+          )}
         </>
       )}
     </div>
@@ -544,6 +600,15 @@ function OrdersView({ products }) {
     } catch (err) { showMessage('Error al guardar', 'error') }
   }
 
+  const toggleOrderStatus = async (order) => {
+    try {
+      const newStatus = order.status === 'pendiente' ? 'entregado' : 'pendiente'
+      await api.put(`/orders/${order._id}`, { status: newStatus })
+      showMessage(newStatus === 'entregado' ? 'Pedido entregado' : 'Pedido marcado como pendiente')
+      loadOrders()
+    } catch (err) { showMessage('Error al actualizar', 'error') }
+  }
+
   return (
     <div className="card" id="orders">
       {message && <div className={`message ${message.type}`}>{message.text}</div>}
@@ -573,9 +638,29 @@ function OrdersView({ products }) {
             <>
               <h3 style={{marginTop: '1.5rem'}}>Pedidos ({orders.length})</h3>
               <table>
-                <thead><tr><th>Cliente</th><th>Talle</th><th>Cantidad</th></tr></thead>
+                <thead><tr><th>Cliente</th><th>Talle</th><th>Cantidad</th><th>Estado</th><th>Acción</th></tr></thead>
                 <tbody>
-                  {orders.map((o, i) => <tr key={i}><td>{o.clientName}</td><td>{o.size}</td><td>{o.quantity}</td></tr>)}
+                  {orders.map((o) => (
+                    <tr key={o._id}>
+                      <td>{o.clientName}</td>
+                      <td>{o.size}</td>
+                      <td>{o.quantity}</td>
+                      <td>
+                        <span className={`badge ${o.status === 'pendiente' ? 'badge-warning' : 'badge-success'}`}>
+                          {o.status === 'pendiente' ? 'Pendiente' : 'Entregado'}
+                        </span>
+                      </td>
+                      <td>
+                        <button 
+                          onClick={() => toggleOrderStatus(o)} 
+                          className={`btn ${o.status === 'pendiente' ? 'btn-success' : ''}`}
+                          style={{padding: '0.25rem 0.5rem'}}
+                        >
+                          {o.status === 'pendiente' ? 'Marcar Entregado' : 'Marcar Pendiente'}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </>

@@ -6,6 +6,7 @@ const orderSchema = new mongoose.Schema({
   clientId: { type: String, default: 'general' },
   clientName: { type: String, default: 'General' },
   quantity: { type: Number, default: 0 },
+  status: { type: String, enum: ['pendiente', 'entregado'], default: 'pendiente' },
   createdAt: { type: Date, default: Date.now }
 });
 
