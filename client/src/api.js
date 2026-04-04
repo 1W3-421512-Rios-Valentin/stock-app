@@ -1,6 +1,6 @@
 import axios from 'axios'
 
-const API = 'http://localhost:5000/api'
+const API = 'https://stock-app-backend-fsnp.onrender.com/api'
 
 const api = axios.create({
   baseURL: API,

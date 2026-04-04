@@ -12,7 +12,11 @@ const JWT_SECRET = process.env.JWT_SECRET || 'stock-app-secret-key-2024';
 
 const app = express();
 
-app.use(cors());
+app.use(cors({
+  origin: '*',
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 app.use(express.json());
 
 let isConnected = false
