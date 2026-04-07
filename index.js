@@ -44,9 +44,63 @@ app.use((req, res, next) => {
   next()
 })
 
-app.get('/api/health', (req, res) => {
-  res.json({ connected: isConnected })
-})
+app.get('/api/dashboard', authMiddleware, async (req, res) => {
+  try {
+    const products = await Product.find();
+    const allStock = await Stock.find();
+    const allOrders = await Order.find();
+    const allProduction = await Production.find();
+
+    const totalProducts = products.length;
+    
+    let totalStock = 0;
+    let totalAvailable = 0;
+    let productsWithLowStock = 0;
+    let productsWithoutStock = 0;
+
+    products.forEach(product => {
+      const stockData = allStock.filter(s => s.sku === product.sku);
+      const productionData = allProduction.filter(p => p.sku === product.sku);
+      const ordersData = allOrders.filter(o => o.sku === product.sku);
+
+      let productStock = 0;
+      let productProduction = 0;
+      let productOrders = 0;
+
+      stockData.forEach(s => productStock += s.quantity);
+      productionData.filter(p => !p.addedToStock).forEach(p => productProduction += p.quantity);
+      ordersData.filter(o => o.status === 'pendiente').forEach(o => productOrders += o.quantity);
+
+      const available = productStock + productProduction - productOrders;
+      totalStock += productStock;
+      totalAvailable += available;
+
+      if (product.stockMin > 0 && available <= product.stockMin) {
+        productsWithLowStock++;
+      }
+      if (productStock === 0) {
+        productsWithoutStock++;
+      }
+    });
+
+    const pendingOrders = allOrders.filter(o => o.status === 'pendiente').reduce((sum, o) => sum + o.quantity, 0);
+    const deliveredOrders = allOrders.filter(o => o.status === 'entregado').reduce((sum, o) => sum + o.quantity, 0);
+
+    res.json({
+      totalProducts,
+      totalStock,
+      totalAvailable,
+      productsWithLowStock,
+      productsWithoutStock,
+      pendingOrders,
+      deliveredOrders,
+      pendingProduction: allProduction.filter(p => !p.addedToStock).reduce((sum, p) => sum + p.quantity, 0)
+    });
+  } catch (err) {
+    console.error('Error dashboard:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
 
 const authMiddleware = (req, res, next) => {
   const token = req.headers.authorization?.split(' ')[1]
@@ -131,7 +185,8 @@ app.get('/api/sizes', authMiddleware, async (req, res) => {
 
 app.post('/api/products', authMiddleware, async (req, res) => {
   try {
-    const product = new Product(req.body);
+    const { sku, name, description, stockMin, category } = req.body;
+    const product = new Product({ sku, name, description, stockMin: stockMin || 0, category: category || 'General' });
     await product.save();
     res.json(product);
   } catch (err) {
@@ -152,9 +207,10 @@ app.get('/api/products', authMiddleware, async (req, res) => {
 
 app.put('/api/products/:sku', authMiddleware, async (req, res) => {
   try {
+    const { name, description, stockMin, category } = req.body;
     const product = await Product.findOneAndUpdate(
       { sku: req.params.sku },
-      { name: req.body.name, description: req.body.description },
+      { name, description, stockMin: stockMin || 0, category: category || 'General' },
       { new: true }
     );
     if (!product) {
@@ -338,6 +394,8 @@ app.get('/api/analysis', authMiddleware, async (req, res) => {
     const allProduction = await Production.find();
     const allOrders = await Order.find();
 
+    const { filter, sortBy } = req.query;
+
     const results = products.map(product => {
       const stockData = allStock.filter(s => s.sku === product.sku);
       const productionData = allProduction.filter(p => p.sku === product.sku);
@@ -367,10 +425,35 @@ app.get('/api/analysis', authMiddleware, async (req, res) => {
         totalAvailable: analysis.reduce((sum, a) => sum + a.available, 0)
       };
 
-      return { sku: product.sku, name: product.name, analysis, totals };
+      return { 
+        sku: product.sku, 
+        name: product.name, 
+        stockMin: product.stockMin || 0,
+        category: product.category || 'General',
+        analysis, 
+        totals 
+      };
     });
 
-    res.json(results);
+    let filteredResults = results;
+    
+    if (filter === 'lowStock') {
+      filteredResults = results.filter(p => p.totals.totalAvailable <= p.stockMin && p.stockMin > 0);
+    } else if (filter === 'noStock') {
+      filteredResults = results.filter(p => p.totals.totalStock === 0);
+    } else if (filter === 'negative') {
+      filteredResults = results.filter(p => p.totals.totalAvailable < 0);
+    }
+
+    if (sortBy === 'name') {
+      filteredResults.sort((a, b) => a.name.localeCompare(b.name));
+    } else if (sortBy === 'stock') {
+      filteredResults.sort((a, b) => b.totals.totalStock - a.totals.totalStock);
+    } else if (sortBy === 'available') {
+      filteredResults.sort((a, b) => a.totals.totalAvailable - b.totals.totalAvailable);
+    }
+
+    res.json(filteredResults);
   } catch (err) {
     console.error('Error analysis:', err);
     res.status(500).json({ error: err.message });
@@ -414,7 +497,14 @@ app.get('/api/analysis/:sku', authMiddleware, async (req, res) => {
       totalAvailable: analysis.reduce((sum, a) => sum + a.available, 0)
     };
 
-    res.json({ sku, name: product.name, analysis, totals });
+    res.json({ 
+      sku, 
+      name: product.name, 
+      stockMin: product.stockMin || 0,
+      category: product.category || 'General',
+      analysis, 
+      totals 
+    });
   } catch (err) {
     console.error('Error analysis single:', err);
     res.status(500).json({ error: err.message });

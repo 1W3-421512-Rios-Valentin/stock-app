@@ -352,3 +352,97 @@ nav a:hover {
   font-size: 1.25rem;
   color: #666;
 }
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.dashboard-card {
+  background: #f8f9fa;
+  padding: 1.5rem;
+  border-radius: 8px;
+  text-align: center;
+}
+
+.dashboard-card.warning {
+  background: #fff3cd;
+}
+
+.dashboard-card.danger {
+  background: #f8d7da;
+}
+
+.dashboard-card .number {
+  font-size: 2.5rem;
+  font-weight: bold;
+  color: #2c3e50;
+}
+
+.dashboard-card.warning .number {
+  color: #856404;
+}
+
+.dashboard-card.danger .number {
+  color: #721c24;
+}
+
+.dashboard-card .label {
+  color: #666;
+  margin-top: 0.5rem;
+}
+
+.filters-row {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.filters-row input, .filters-row select {
+  flex: 1;
+  min-width: 150px;
+  padding: 0.5rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.btn-export {
+  background: #17a2b8;
+}
+
+.btn-export:hover {
+  background: #138496;
+}
+
+th.sortable {
+  cursor: pointer;
+  user-select: none;
+}
+
+th.sortable:hover {
+  background: #e9ecef;
+}
+
+.sort-icon {
+  margin-left: 0.25rem;
+  font-size: 0.75rem;
+}
+
+.alert-low-stock {
+  background: #fff3cd;
+  color: #856404;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+}
+
+.alert-no-stock {
+  background: #f8d7da;
+  color: #721c24;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+}
