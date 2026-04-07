@@ -37,71 +37,6 @@ mongoose.connect(process.env.MONGODB_URI, {
     console.error('Code:', err.code)
   });
 
-app.use((req, res, next) => {
-  if (!isConnected) {
-    return res.status(503).json({ error: 'Base de datos conectando, esperar...' })
-  }
-  next()
-})
-
-app.get('/api/dashboard', authMiddleware, async (req, res) => {
-  try {
-    const products = await Product.find();
-    const allStock = await Stock.find();
-    const allOrders = await Order.find();
-    const allProduction = await Production.find();
-
-    const totalProducts = products.length;
-    
-    let totalStock = 0;
-    let totalAvailable = 0;
-    let productsWithLowStock = 0;
-    let productsWithoutStock = 0;
-
-    products.forEach(product => {
-      const stockData = allStock.filter(s => s.sku === product.sku);
-      const productionData = allProduction.filter(p => p.sku === product.sku);
-      const ordersData = allOrders.filter(o => o.sku === product.sku);
-
-      let productStock = 0;
-      let productProduction = 0;
-      let productOrders = 0;
-
-      stockData.forEach(s => productStock += s.quantity);
-      productionData.filter(p => !p.addedToStock).forEach(p => productProduction += p.quantity);
-      ordersData.filter(o => o.status === 'pendiente').forEach(o => productOrders += o.quantity);
-
-      const available = productStock + productProduction - productOrders;
-      totalStock += productStock;
-      totalAvailable += available;
-
-      if (product.stockMin > 0 && available <= product.stockMin) {
-        productsWithLowStock++;
-      }
-      if (productStock === 0) {
-        productsWithoutStock++;
-      }
-    });
-
-    const pendingOrders = allOrders.filter(o => o.status === 'pendiente').reduce((sum, o) => sum + o.quantity, 0);
-    const deliveredOrders = allOrders.filter(o => o.status === 'entregado').reduce((sum, o) => sum + o.quantity, 0);
-
-    res.json({
-      totalProducts,
-      totalStock,
-      totalAvailable,
-      productsWithLowStock,
-      productsWithoutStock,
-      pendingOrders,
-      deliveredOrders,
-      pendingProduction: allProduction.filter(p => !p.addedToStock).reduce((sum, p) => sum + p.quantity, 0)
-    });
-  } catch (err) {
-    console.error('Error dashboard:', err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
 const authMiddleware = (req, res, next) => {
   const token = req.headers.authorization?.split(' ')[1]
   if (!token) {
@@ -115,6 +50,13 @@ const authMiddleware = (req, res, next) => {
     return res.status(401).json({ error: 'Token inválido' })
   }
 }
+
+app.use((req, res, next) => {
+  if (!isConnected) {
+    return res.status(503).json({ error: 'Base de datos conectando, esperar...' })
+  }
+  next()
+})
 
 const User = require('./models/User');
 
